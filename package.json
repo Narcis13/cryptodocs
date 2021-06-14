@@ -1,0 +1,13 @@
+{
+  "name": "cryptodocs",
+  "private": true,
+  "scripts": {
+    "develop": "gridsome develop",
+    "explore": "gridsome explore",
+    "build": "gridsome build"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "gridsome": "^0.7.0"
+  }
+}
