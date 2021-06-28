@@ -136,3 +136,119 @@ if(strategy.equity > strategy.initial_capital * 0.2 and (strategy.closedtrades +
 ======================================
 
 
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © narcis7599441
+
+//@version=4
+//ramine...
+strategy("PlusPlus",overlay=true)
+
+ema21=ema(close,21)
+ema50=ema(close,50)
+ema200=ema(close,200)
+
+emaplot = input (true, title="Show EMA on chart")
+date2 = input(title="From date", type=input.time, defval=timestamp("2021-01-01T00:00+03:00"))
+
+useEMATrigger = input(false,title="Use EMA cross as trigger ?")
+mf    = input(2.,"Martingale Multiplier")
+len = input(8, minval=1, title="ema Length")
+canti=input(1,title="Initial Quantity",minval=0.01)
+cantplus=input(1,title="Plus Quantity",minval=0.01)
+target_perc = input(1, title='Target Profit to Scale In (%)',minval=0.01)/100
+take_profit = input(1, title='Target Take Profit', minval=0.01)
+target_qty  = input(200, title='% Of Current Holdings to Buy', minval=0)/100 
+StopLossPercentage=input(2,title="Stop Loss Percent", minval=0.01, step=0.5)
+src = close
+out = ema(src, len)
+up = (out > ema21) 
+down = out < ema21
+crossup = crossover(out,ema21)
+crossdown = crossunder(out,ema21)
+mycolor = up ? #00ffaa : #ffc1cc
+plot(out and emaplot ? out :na, title="EMA", color=mycolor, linewidth=3)
+plot(ema21 and emaplot ? ema21 :na, title="EMA21", color=color.black, linewidth=3)
+
+
+
+longcondition=(out > out[1]) and (out[1]<out[2])  
+shortcondition= (out < out[1]) and (out[1]>out[2])  
+golong= useEMATrigger ? crossup : longcondition
+goshort=useEMATrigger ? crossdown : shortcondition
+closelong=(out < out[1]) and (out[1]>out[2])  //and not long[2]
+closeshort=(out > out[1]) and (out[1]<out[2])  //and not long[2]
+
+//plot(ema20,title="20",color=#00ffaa,linewidth=2)
+//plot(ema50,title="50",color=#ffc1cc,linewidth=2)
+
+
+PlusTradePercentage=input(1, minval=0.5, title="Position Add Profit Percentage")
+
+LossTarget=(close*(StopLossPercentage/100))/syminfo.mintick
+ProfitTarget=(close*(take_profit/100))/syminfo.mintick
+PlusTarget=(close*(PlusTradePercentage/100)*canti)
+addToLong = (strategy.position_size > 0) and (strategy.position_size < 3) and (strategy.openprofit > 1200)
+pnl=(close>strategy.position_avg_price) ? ((close - strategy.position_avg_price) / strategy.position_avg_price) : ((strategy.position_avg_price-close) / strategy.position_avg_price)
+
+//plot(close*(1+target_perc),color=#00ffaa,offset=0,linewidth=2)
+//plot(close*(1-target_perc),color=#ffc1cc,offset=0,linewidth=2)
+
+size = 0.
+loss = change(strategy.losstrades)
+win = change(strategy.wintrades)
+size := loss ? size[1]*mf : win ? canti : nz(size[1],canti)
+    
+if time >= date2
+    if (golong)
+        strategy.entry("Long",strategy.long,size, stop=ema21*(1+target_perc))
+    if (goshort)
+        strategy.entry("Short",strategy.short,size, stop=ema21*(1-target_perc))        
+    //strategy.entry("Short",strategy.short,canti,when=strategy.opentrades == 0 and shortcondition )
+    //strategy.entry("LongPlus",strategy.long,cantplus,when=strategy.position_size == 1 and (pnl>=target_perc) and longcondition)
+    //strategy.entry("ShortPlus",strategy.short,cantplus,when= strategy.position_size == -1 and (pnl>=target_perc) and shortcondition)
+
+
+   
+//strategy.close("Long",when=closelong)
+//strategy.close("Short",when=closeshort)
+strategy.exit("StopLong","Long",loss=LossTarget, profit=ProfitTarget)    
+strategy.exit("StopShort","Short",loss=LossTarget,profit=ProfitTarget)    
+
+changeInProfits = change(strategy.netprofit)
+lastPercentProfit = changeInProfits ? 100 * (changeInProfits / strategy.position_size[1]) / strategy.position_avg_price[1] : na
+lastPL=100 * (changeInProfits / strategy.position_size[1]) / strategy.position_avg_price[1]
+plotchar(lastPercentProfit, "lastPercentProfit", "", location.top, size = size.tiny)
+plotchar(lastPL, "Last P/L %", "", location.top, size = size.tiny)
+
+// For validation
+plotchar(strategy.losstrades, "Loss Trades", "", location.top, size = size.tiny)
+plotchar(strategy.wintrades, "Win Trades", "", location.top, size = size.tiny)
+plotchar(strategy.netprofit, "strategy.netprofit", "", location.top, size = size.tiny)
+plotchar(strategy.position_size, "strategy.position_size", "", location.top, size = size.tiny)
+plotchar(size, "Actual size", "", location.top, size = size.tiny)
+
+
+var table t = table.new(position.top_right,2,2)
+
+//if (barstate.islast)
+table.cell(t,0,0,"P/L",width=5)
+table.cell(t,1,0,"--",width=5)
+
+table.cell(t,0,1,"$Add",width=5)
+table.cell(t,1,1,"--",width=5)
+    
+==============================================================================    
+
+//MULTI TIME FRAME EMA
+//author Jurij 2015
+//default moving average period is 4H because '4h' is missing in the resolution drop down list
+study("Multi Time Frame Exponential Moving Average", "MTF EMA", overlay=true)
+ma_len = input(title="Length", type=integer, defval=100)
+src = input(title="Source", type=source, defval=close)
+ma_offset = input(title="Offset", type=integer, defval=0)
+res = input(title="Resolution", type=resolution, defval="240")
+htf_ma = ema(src, ma_len)
+out = security(tickerid, res, htf_ma)
+plot(out, color=red, offset=ma_offset)
+
+=======================================================================
